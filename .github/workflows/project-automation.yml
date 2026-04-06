@@ -1,0 +1,394 @@
+name: Project Board Automation
+
+on:
+  issues:
+    types: [opened]
+  pull_request:
+    types: [opened, review_requested, closed]
+  pull_request_review:
+    types: [submitted]
+  push:
+
+env:
+  PROJECT_ID: PVT_kwHOAtRE6s4BTy8p
+  STATUS_FIELD_ID: PVTSSF_lAHOAtRE6s4BTy8pzhA_Yfk
+  TODO: b94d41f9
+  DEVELOPING: 5f2a2bd5
+  WAITING_FOR_REVIEW: bdacb6ac
+  IN_REVIEW: f8e506e7
+  CHANGES_REQUESTED: fbbec20f
+  DONE: 3a39eb97
+
+jobs:
+  new-issue:
+    name: New issue → Todo
+    if: github.event_name == 'issues' && github.event.action == 'opened'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Add issue to project
+        id: add-to-project
+        uses: actions/add-to-project@v1.0.2
+        with:
+          project-url: https://github.com/users/flpdorea/projects/6
+          github-token: ${{ secrets.PROJECT_TOKEN }}
+
+      - name: Set status to Todo
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
+          ITEM_ID: ${{ steps.add-to-project.outputs.itemId }}
+        run: |
+          gh api graphql -f query='
+            mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
+              updateProjectV2ItemFieldValue(input: {
+                projectId: $projectId
+                itemId: $itemId
+                fieldId: $fieldId
+                value: { singleSelectOptionId: $optionId }
+              }) { projectV2Item { id } }
+            }' \
+            -f projectId="$PROJECT_ID" \
+            -f itemId="$ITEM_ID" \
+            -f fieldId="$STATUS_FIELD_ID" \
+            -f optionId="$TODO"
+
+  pr-opened:
+    name: PR opened → Waiting for review
+    if: github.event_name == 'pull_request' && github.event.action == 'opened'
+    runs-on: ubuntu-latest
+    outputs:
+      item-id: ${{ steps.find-item.outputs.item_id }}
+    steps:
+      - name: Find linked project item
+        id: find-item
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          ISSUE_NUMBER=$(echo "$PR_BODY" | grep -oE '(close|closes|fix|fixes|resolve|resolves) #[0-9]+' | grep -oE '[0-9]+' | head -1)
+          
+          if [ -z "$ISSUE_NUMBER" ]; then
+            echo "No linked issue found in PR body"
+            echo "item_id=" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          ITEM_ID=$(gh api graphql -f query='
+            query($owner: String!, $repo: String!, $issueNumber: Int!) {
+              repository(owner: $owner, name: $repo) {
+                issue(number: $issueNumber) {
+                  projectItems(first: 10) {
+                    nodes {
+                      id
+                      project { id }
+                    }
+                  }
+                }
+              }
+            }' \
+            -f owner="flpdorea" \
+            -f repo="template" \
+            -F issueNumber="$ISSUE_NUMBER" \
+            --jq '.data.repository.issue.projectItems.nodes[] | select(.project.id == "'"$PROJECT_ID"'") | .id')
+          
+          echo "item_id=$ITEM_ID" >> $GITHUB_OUTPUT
+
+      - name: Set status to Waiting for review
+        if: steps.find-item.outputs.item_id != ''
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
+          ITEM_ID: ${{ steps.find-item.outputs.item_id }}
+        run: |
+          gh api graphql -f query='
+            mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
+              updateProjectV2ItemFieldValue(input: {
+                projectId: $projectId
+                itemId: $itemId
+                fieldId: $fieldId
+                value: { singleSelectOptionId: $optionId }
+              }) { projectV2Item { id } }
+            }' \
+            -f projectId="$PROJECT_ID" \
+            -f itemId="$ITEM_ID" \
+            -f fieldId="$STATUS_FIELD_ID" \
+            -f optionId="$WAITING_FOR_REVIEW"
+
+  review-requested:
+    name: Review requested → In review
+    if: github.event_name == 'pull_request' && github.event.action == 'review_requested'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Find linked project item
+        id: find-item
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          ISSUE_NUMBER=$(echo "$PR_BODY" | grep -oE '(close|closes|fix|fixes|resolve|resolves) #[0-9]+' | grep -oE '[0-9]+' | head -1)
+          
+          if [ -z "$ISSUE_NUMBER" ]; then
+            echo "item_id=" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          ITEM_ID=$(gh api graphql -f query='
+            query($owner: String!, $repo: String!, $issueNumber: Int!) {
+              repository(owner: $owner, name: $repo) {
+                issue(number: $issueNumber) {
+                  projectItems(first: 10) {
+                    nodes {
+                      id
+                      project { id }
+                    }
+                  }
+                }
+              }
+            }' \
+            -f owner="flpdorea" \
+            -f repo="template" \
+            -F issueNumber="$ISSUE_NUMBER" \
+            --jq '.data.repository.issue.projectItems.nodes[] | select(.project.id == "'"$PROJECT_ID"'") | .id')
+          
+          echo "item_id=$ITEM_ID" >> $GITHUB_OUTPUT
+
+      - name: Set status to In review
+        if: steps.find-item.outputs.item_id != ''
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
+          ITEM_ID: ${{ steps.find-item.outputs.item_id }}
+        run: |
+          gh api graphql -f query='
+            mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
+              updateProjectV2ItemFieldValue(input: {
+                projectId: $projectId
+                itemId: $itemId
+                fieldId: $fieldId
+                value: { singleSelectOptionId: $optionId }
+              }) { projectV2Item { id } }
+            }' \
+            -f projectId="$PROJECT_ID" \
+            -f itemId="$ITEM_ID" \
+            -f fieldId="$STATUS_FIELD_ID" \
+            -f optionId="$IN_REVIEW"
+
+  changes-requested:
+    name: Changes requested → Changes requested status
+    if: github.event_name == 'pull_request_review' && github.event.review.state == 'changes_requested'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Find linked project item
+        id: find-item
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          ISSUE_NUMBER=$(echo "$PR_BODY" | grep -oE '(close|closes|fix|fixes|resolve|resolves) #[0-9]+' | grep -oE '[0-9]+' | head -1)
+          
+          if [ -z "$ISSUE_NUMBER" ]; then
+            echo "item_id=" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          ITEM_ID=$(gh api graphql -f query='
+            query($owner: String!, $repo: String!, $issueNumber: Int!) {
+              repository(owner: $owner, name: $repo) {
+                issue(number: $issueNumber) {
+                  projectItems(first: 10) {
+                    nodes {
+                      id
+                      project { id }
+                    }
+                  }
+                }
+              }
+            }' \
+            -f owner="flpdorea" \
+            -f repo="template" \
+            -F issueNumber="$ISSUE_NUMBER" \
+            --jq '.data.repository.issue.projectItems.nodes[] | select(.project.id == "'"$PROJECT_ID"'") | .id')
+          
+          echo "item_id=$ITEM_ID" >> $GITHUB_OUTPUT
+
+      - name: Set status to Changes requested
+        if: steps.find-item.outputs.item_id != ''
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
+          ITEM_ID: ${{ steps.find-item.outputs.item_id }}
+        run: |
+          gh api graphql -f query='
+            mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
+              updateProjectV2ItemFieldValue(input: {
+                projectId: $projectId
+                itemId: $itemId
+                fieldId: $fieldId
+                value: { singleSelectOptionId: $optionId }
+              }) { projectV2Item { id } }
+            }' \
+            -f projectId="$PROJECT_ID" \
+            -f itemId="$ITEM_ID" \
+            -f fieldId="$STATUS_FIELD_ID" \
+            -f optionId="$CHANGES_REQUESTED"
+
+  pr-merged:
+    name: PR merged → Done
+    if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Find linked project item
+        id: find-item
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          ISSUE_NUMBER=$(echo "$PR_BODY" | grep -oE '(close|closes|fix|fixes|resolve|resolves) #[0-9]+' | grep -oE '[0-9]+' | head -1)
+          
+          if [ -z "$ISSUE_NUMBER" ]; then
+            echo "item_id=" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          ITEM_ID=$(gh api graphql -f query='
+            query($owner: String!, $repo: String!, $issueNumber: Int!) {
+              repository(owner: $owner, name: $repo) {
+                issue(number: $issueNumber) {
+                  projectItems(first: 10) {
+                    nodes {
+                      id
+                      project { id }
+                    }
+                  }
+                }
+              }
+            }' \
+            -f owner="flpdorea" \
+            -f repo="template" \
+            -F issueNumber="$ISSUE_NUMBER" \
+            --jq '.data.repository.issue.projectItems.nodes[] | select(.project.id == "'"$PROJECT_ID"'") | .id')
+          
+          echo "item_id=$ITEM_ID" >> $GITHUB_OUTPUT
+
+      - name: Set status to Done
+        if: steps.find-item.outputs.item_id != ''
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
+          ITEM_ID: ${{ steps.find-item.outputs.item_id }}
+        run: |
+          gh api graphql -f query='
+            mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
+              updateProjectV2ItemFieldValue(input: {
+                projectId: $projectId
+                itemId: $itemId
+                fieldId: $fieldId
+                value: { singleSelectOptionId: $optionId }
+              }) { projectV2Item { id } }
+            }' \
+            -f projectId="$PROJECT_ID" \
+            -f itemId="$ITEM_ID" \
+            -f fieldId="$STATUS_FIELD_ID" \
+            -f optionId="$DONE"
+
+  push-after-changes:
+    name: Push to PR with Changes requested → Waiting for review
+    if: github.event_name == 'push' && github.ref != 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Find PR for this branch
+        id: find-pr
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          PR_NUMBER=$(gh api graphql -f query='
+            query($owner: String!, $repo: String!, $headRefName: String!) {
+              repository(owner: $owner, name: $repo) {
+                pullRequests(headRefName: $headRefName, states: [OPEN], first: 1) {
+                  nodes {
+                    number
+                    body
+                  }
+                }
+              }
+            }' \
+            -f owner="flpdorea" \
+            -f repo="template" \
+            -f headRefName="$BRANCH" \
+            --jq '.data.repository.pullRequests.nodes[0].number // empty')
+          
+          if [ -z "$PR_NUMBER" ]; then
+            echo "pr_number=" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+          
+          PR_BODY=$(gh pr view "$PR_NUMBER" --json body --jq '.body')
+          echo "pr_body<<EOF" >> $GITHUB_OUTPUT
+          echo "$PR_BODY" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Find linked project item
+        id: find-item
+        if: steps.find-pr.outputs.pr_number != ''
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
+          PR_BODY: ${{ steps.find-pr.outputs.pr_body }}
+        run: |
+          ISSUE_NUMBER=$(echo "$PR_BODY" | grep -oE '(close|closes|fix|fixes|resolve|resolves) #[0-9]+' | grep -oE '[0-9]+' | head -1)
+          
+          if [ -z "$ISSUE_NUMBER" ]; then
+            echo "item_id=" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          ITEM_ID=$(gh api graphql -f query='
+            query($owner: String!, $repo: String!, $issueNumber: Int!) {
+              repository(owner: $owner, name: $repo) {
+                issue(number: $issueNumber) {
+                  projectItems(first: 10) {
+                    nodes {
+                      id
+                      project { id }
+                      fieldValueByName(name: "Status") {
+                        ... on ProjectV2ItemFieldSingleSelectValue {
+                          optionId
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }' \
+            -f owner="flpdorea" \
+            -f repo="template" \
+            -F issueNumber="$ISSUE_NUMBER" \
+            --jq '.data.repository.issue.projectItems.nodes[] | select(.project.id == "'"$PROJECT_ID"'") | {id: .id, status: .fieldValueByName.optionId}')
+          
+          CURRENT_STATUS=$(echo "$ITEM_ID" | jq -r '.status')
+          ITEM_ID=$(echo "$ITEM_ID" | jq -r '.id')
+          
+          if [ "$CURRENT_STATUS" = "$CHANGES_REQUESTED" ]; then
+            echo "needs_move=true" >> $GITHUB_OUTPUT
+            echo "item_id=$ITEM_ID" >> $GITHUB_OUTPUT
+          else
+            echo "needs_move=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set status to Waiting for review
+        if: steps.find-item.outputs.needs_move == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
+          ITEM_ID: ${{ steps.find-item.outputs.item_id }}
+        run: |
+          gh api graphql -f query='
+            mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
+              updateProjectV2ItemFieldValue(input: {
+                projectId: $projectId
+                itemId: $itemId
+                fieldId: $fieldId
+                value: { singleSelectOptionId: $optionId }
+              }) { projectV2Item { id } }
+            }' \
+            -f projectId="$PROJECT_ID" \
+            -f itemId="$ITEM_ID" \
+            -f fieldId="$STATUS_FIELD_ID" \
+            -f optionId="$WAITING_FOR_REVIEW"
