@@ -1,11 +1,9 @@
 name: CD
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
-  # Keep automatic deploy disabled during bootstrap.
-  # Re-enable when the team is ready for production deploys.
-  # push:
-  #   branches: [main]
 
 jobs:
   deploy:
