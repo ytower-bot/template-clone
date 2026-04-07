@@ -1,0 +1,8 @@
+#!/usr/bin/env sh
+if command -v bunx >/dev/null 2>&1; then
+  bunx biome check --write .
+elif command -v npx >/dev/null 2>&1; then
+  npx --no-install @biomejs/biome check --write . || echo "Skipping Biome: dependencies not installed yet."
+else
+  echo "Skipping Biome: bunx/npx not available."
+fi

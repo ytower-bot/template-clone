@@ -12,6 +12,9 @@ on:
 env:
   PROJECT_ID: PVT_kwHOAtRE6s4BTy8p
   STATUS_FIELD_ID: PVTSSF_lAHOAtRE6s4BTy8pzhA_Yfk
+  PROJECT_URL: https://github.com/users/flpdorea/projects/6
+  REPO_OWNER: ${{ github.repository_owner }}
+  REPO_NAME: ${{ github.event.repository.name }}
   TODO: b94d41f9
   DEVELOPING: 5f2a2bd5
   WAITING_FOR_REVIEW: bdacb6ac
@@ -29,7 +32,7 @@ jobs:
         id: add-to-project
         uses: actions/add-to-project@v1.0.2
         with:
-          project-url: https://github.com/users/flpdorea/projects/6
+          project-url: ${{ env.PROJECT_URL }}
           github-token: ${{ secrets.PROJECT_TOKEN }}
 
       - name: Set status to Todo
@@ -86,8 +89,8 @@ jobs:
                 }
               }
             }' \
-            -f owner="flpdorea" \
-            -f repo="template" \
+            -f owner="$REPO_OWNER" \
+            -f repo="$REPO_NAME" \
             -F issueNumber="$ISSUE_NUMBER" \
             --jq '.data.repository.issue.projectItems.nodes[] | select(.project.id == "'"$PROJECT_ID"'") | .id')
           
@@ -144,8 +147,8 @@ jobs:
                 }
               }
             }' \
-            -f owner="flpdorea" \
-            -f repo="template" \
+            -f owner="$REPO_OWNER" \
+            -f repo="$REPO_NAME" \
             -F issueNumber="$ISSUE_NUMBER" \
             --jq '.data.repository.issue.projectItems.nodes[] | select(.project.id == "'"$PROJECT_ID"'") | .id')
           
@@ -202,8 +205,8 @@ jobs:
                 }
               }
             }' \
-            -f owner="flpdorea" \
-            -f repo="template" \
+            -f owner="$REPO_OWNER" \
+            -f repo="$REPO_NAME" \
             -F issueNumber="$ISSUE_NUMBER" \
             --jq '.data.repository.issue.projectItems.nodes[] | select(.project.id == "'"$PROJECT_ID"'") | .id')
           
@@ -260,8 +263,8 @@ jobs:
                 }
               }
             }' \
-            -f owner="flpdorea" \
-            -f repo="template" \
+            -f owner="$REPO_OWNER" \
+            -f repo="$REPO_NAME" \
             -F issueNumber="$ISSUE_NUMBER" \
             --jq '.data.repository.issue.projectItems.nodes[] | select(.project.id == "'"$PROJECT_ID"'") | .id')
           
@@ -309,8 +312,8 @@ jobs:
                 }
               }
             }' \
-            -f owner="flpdorea" \
-            -f repo="template" \
+            -f owner="$REPO_OWNER" \
+            -f repo="$REPO_NAME" \
             -f headRefName="$BRANCH" \
             --jq '.data.repository.pullRequests.nodes[0].number // empty')
           
@@ -358,8 +361,8 @@ jobs:
                 }
               }
             }' \
-            -f owner="flpdorea" \
-            -f repo="template" \
+            -f owner="$REPO_OWNER" \
+            -f repo="$REPO_NAME" \
             -F issueNumber="$ISSUE_NUMBER" \
             --jq '.data.repository.issue.projectItems.nodes[] | select(.project.id == "'"$PROJECT_ID"'") | {id: .id, status: .fieldValueByName.optionId}')
           

@@ -1,0 +1,23 @@
+{
+  "name": "back",
+  "private": true,
+  "scripts": {
+    "start:dev": "bun run --watch src/main.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/main.js",
+    "lint": "biome check .",
+    "test": "echo \"no tests yet\""
+  },
+  "dependencies": {
+    "@nestjs/common": "latest",
+    "@nestjs/core": "latest",
+    "@nestjs/platform-express": "latest",
+    "reflect-metadata": "latest",
+    "rxjs": "latest",
+    "zod": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "latest",
+    "typescript": "latest"
+  }
+}
